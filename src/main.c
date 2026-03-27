@@ -60,6 +60,19 @@ void usart3_init(void) {
     huart3.Init.HwFlowCtl    = UART_HWCONTROL_NONE;
     huart3.Init.OverSampling = UART_OVERSAMPLING_16;
     HAL_UART_Init(&huart3);
+
+    // Enable receive interrupt and register the handler with the NVIC
+    USART3->CR1 |= USART_CR1_RXNEIE;
+    HAL_NVIC_SetPriority(USART3_4_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(USART3_4_IRQn);
+}
+
+volatile uint8_t rx_data = 0;
+volatile uint8_t rx_flag = 0;
+
+void USART3_4_IRQHandler(void) {
+    rx_data = USART3->RDR;
+    rx_flag = 1;
 }
 
 void transmit_char(char c) {
@@ -95,6 +108,49 @@ int main(void) {
 
     while (1) {
         transmit_string("CMD?\r\n");
-        HAL_Delay(1000);
+
+        while (!rx_flag);
+        rx_flag = 0;
+        char color = rx_data;
+
+        uint16_t pin;
+        const char *color_name;
+        switch (color) {
+            case 'r': pin = GPIO_PIN_6; color_name = "red";    break;
+            case 'b': pin = GPIO_PIN_7; color_name = "blue";   break;
+            case 'o': pin = GPIO_PIN_8; color_name = "orange"; break;
+            case 'g': pin = GPIO_PIN_9; color_name = "green";  break;
+            default:
+                transmit_string("Error: unknown color\r\n");
+                continue;
+        }
+
+        while (!rx_flag);
+        rx_flag = 0;
+        char action = rx_data;
+
+        switch (action) {
+            case '0':
+                HAL_GPIO_WritePin(GPIOC, pin, GPIO_PIN_RESET);
+                transmit_string("Turned off ");
+                transmit_string(color_name);
+                transmit_string("\r\n");
+                break;
+            case '1':
+                HAL_GPIO_WritePin(GPIOC, pin, GPIO_PIN_SET);
+                transmit_string("Turned on ");
+                transmit_string(color_name);
+                transmit_string("\r\n");
+                break;
+            case '2':
+                HAL_GPIO_TogglePin(GPIOC, pin);
+                transmit_string("Toggled ");
+                transmit_string(color_name);
+                transmit_string("\r\n");
+                break;
+            default:
+                transmit_string("Error: unknown action\r\n");
+                break;
+        }
     }
 }
