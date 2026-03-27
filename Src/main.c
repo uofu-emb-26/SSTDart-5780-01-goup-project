@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <supportAndInit>
 #include "main.h"
 #include "dac.h"
 
@@ -24,15 +25,15 @@ static void delay_loop(volatile uint32_t t)
     while (t--) __asm__("nop");
 }
 
-// --- Clock ---
+// --- Clock --- **<- Legacy code, maybe remove**
 
 void SystemClock_Config(void)
 {
     RCC_OscInitTypeDef oscillator = {0};
-    oscillator.OscillatorType      = RCC_OSCILLATORTYPE_HSI;
-    oscillator.HSIState            = RCC_HSI_ON;
-    oscillator.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-    oscillator.PLL.PLLState        = RCC_PLL_NONE;
+    oscillator.OscillatorType      = RCC_OSCILLATORTYPE_HSI; // o
+    oscillator.HSIState            = RCC_HSI_ON; //o
+    oscillator.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT; //0
+    oscillator.PLL.PLLState        = RCC_PLL_NONE; //o
     if (HAL_RCC_OscConfig(&oscillator) != HAL_OK) {
         while (1) {}
     }
@@ -54,6 +55,7 @@ UART_HandleTypeDef huart3;
 volatile uint8_t rx_data = 0;
 volatile uint8_t rx_flag = 0;
 
+// **Legacy code, maybe remove**
 static void usart3_init(void)
 {
     __HAL_RCC_GPIOC_CLK_ENABLE();
