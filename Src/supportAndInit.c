@@ -104,12 +104,11 @@ void PrepConfigLED(){
     GPIOC->PUPDR &= ~(1 << 19);
 
 }
-/*
+/* PrepConfigUART - configure UART for use.
 *
+* no peram
 *
-*
-*
-*
+* no return
 *
 */
 void PrepConfigUART(){
@@ -128,7 +127,7 @@ void PrepConfigUART(){
     GPIOC->AFR[1] &= ~((0xF << 8) | (0xF << 12));
     GPIOC->AFR[1] |=  ((1 << 8) | (1 << 12));
 
-
+    //set baud rate
     USART3->BRR = 0x45;
 
     //Enable TX, Enable RX, and Enable RX Interrupt
