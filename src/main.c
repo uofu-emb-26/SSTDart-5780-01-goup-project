@@ -60,13 +60,18 @@ void usart3_init(void) {
     huart3.Init.HwFlowCtl    = UART_HWCONTROL_NONE;
     huart3.Init.OverSampling = UART_OVERSAMPLING_16;
     HAL_UART_Init(&huart3);
+}
 
-    // Enable receive register not empty interrupt
-    USART3->CR1 |= USART_CR1_RXNEIE;
+void transmit_char(char c) {
+    while (!(USART3->ISR & USART_ISR_TXE));
+    USART3->TDR = c;
+}
 
-    // Route USART3_4 interrupts to USART3_4_IRQn handler
-    HAL_NVIC_SetPriority(USART3_4_IRQn, 1, 0);
-    HAL_NVIC_EnableIRQ(USART3_4_IRQn);
+void transmit_string(const char *str) {
+    while (*str != '\0') {
+        transmit_char(*str);
+        str++;
+    }
 }
 
 void led_init(void) {
@@ -89,5 +94,7 @@ int main(void) {
     led_init();
 
     while (1) {
+        transmit_string("CMD?\r\n");
+        HAL_Delay(1000);
     }
 }
