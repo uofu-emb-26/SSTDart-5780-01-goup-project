@@ -31,6 +31,44 @@ void system_clock_config(void) {
     }
 }
 
+UART_HandleTypeDef huart3;
+
+void usart3_init(void) {
+    __HAL_RCC_GPIOC_CLK_ENABLE();
+
+    // Connect PC10 to TX and PC11 to RX
+    //
+    // GPIO_MODE_AF_PP and GPIO_AF1_USART3 cause those pins to be connected to
+    // the USART3 peripheral
+    GPIO_InitTypeDef gpio = {0};
+    gpio.Pin       = GPIO_PIN_10 | GPIO_PIN_11;
+    gpio.Mode      = GPIO_MODE_AF_PP;
+    gpio.Pull      = GPIO_NOPULL;
+    gpio.Speed     = GPIO_SPEED_FREQ_LOW;
+    gpio.Alternate = GPIO_AF1_USART3;
+    HAL_GPIO_Init(GPIOC, &gpio);
+
+    __HAL_RCC_USART3_CLK_ENABLE();
+
+    // Initialize USART3 at 115200 baud, 8 data bits, no parity, 1 stop bit
+    huart3.Instance          = USART3;
+    huart3.Init.BaudRate     = 115200;
+    huart3.Init.WordLength   = UART_WORDLENGTH_8B;
+    huart3.Init.StopBits     = UART_STOPBITS_1;
+    huart3.Init.Parity       = UART_PARITY_NONE;
+    huart3.Init.Mode         = UART_MODE_TX_RX;
+    huart3.Init.HwFlowCtl    = UART_HWCONTROL_NONE;
+    huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+    HAL_UART_Init(&huart3);
+
+    // Enable receive register not empty interrupt
+    USART3->CR1 |= USART_CR1_RXNEIE;
+
+    // Route USART3_4 interrupts to USART3_4_IRQn handler
+    HAL_NVIC_SetPriority(USART3_4_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(USART3_4_IRQn);
+}
+
 void led_init(void) {
     __HAL_RCC_GPIOC_CLK_ENABLE();
 
@@ -47,6 +85,7 @@ void led_init(void) {
 int main(void) {
     HAL_Init();
     system_clock_config();
+    usart3_init();
     led_init();
 
     while (1) {
