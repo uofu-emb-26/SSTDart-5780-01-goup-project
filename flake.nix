@@ -21,6 +21,10 @@
                 gnumake
                 openocd
                 stlink
+                (python3.withPackages (pythonPackages: with pythonPackages; [
+                  pyserial
+                  matplotlib
+                ]))
               ];
             };
           }

@@ -1,4 +1,9 @@
+#include <stdio.h>
 #include "stm32f0xx_hal.h"
+
+#define SWEEP_START_HZ   1000
+#define SWEEP_END_HZ     100000
+#define SWEEP_STEPS      64
 
 void HardFault_Handler(void) { while (1) {} }
 
@@ -75,6 +80,12 @@ void USART3_4_IRQHandler(void) {
     rx_flag = 1;
 }
 
+char receive_char(void) {
+    while (!rx_flag);
+    rx_flag = 0;
+    return rx_data;
+}
+
 void transmit_char(char c) {
     while (!(USART3->ISR & USART_ISR_TXE));
     USART3->TDR = c;
@@ -87,69 +98,34 @@ void transmit_string(const char *str) {
     }
 }
 
-void led_init(void) {
-    __HAL_RCC_GPIOC_CLK_ENABLE();
+void transmit_uint32(uint32_t freq, uint32_t mag) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%lu %lu\r\n", freq, mag);
+    transmit_string(buf);
+}
 
-    GPIO_InitTypeDef gpio = {0};
-    gpio.Pin   = GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_8 | GPIO_PIN_9;
-    gpio.Mode  = GPIO_MODE_OUTPUT_PP;
-    gpio.Pull  = GPIO_NOPULL;
-    gpio.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(GPIOC, &gpio);
-
-    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6 | GPIO_PIN_7, GPIO_PIN_SET);
+void sweep(void) {
+    uint32_t step = (SWEEP_END_HZ - SWEEP_START_HZ) / (SWEEP_STEPS - 1);
+    for (int i = 0; i < SWEEP_STEPS; i++) {
+        uint32_t frequency = SWEEP_START_HZ + i * step;
+        uint32_t magnitude  = i * (4095 / (SWEEP_STEPS - 1));
+        transmit_uint32(frequency, magnitude);
+    }
+    transmit_string("END\r\n");
 }
 
 int main(void) {
     HAL_Init();
     system_clock_config();
     usart3_init();
-    led_init();
 
     while (1) {
-        transmit_string("CMD?\r\n");
-
-        while (!rx_flag);
-        rx_flag = 0;
-        char color = rx_data;
-
-        uint16_t pin;
-        const char *color_name;
-        switch (color) {
-            case 'r': pin = GPIO_PIN_6; color_name = "red";    break;
-            case 'b': pin = GPIO_PIN_7; color_name = "blue";   break;
-            case 'o': pin = GPIO_PIN_8; color_name = "orange"; break;
-            case 'g': pin = GPIO_PIN_9; color_name = "green";  break;
-            default:
-                transmit_string("Error: unknown color\r\n");
-                continue;
-        }
-
-        while (!rx_flag);
-        rx_flag = 0;
-        char action = rx_data;
-
-        switch (action) {
-            case '0':
-                HAL_GPIO_WritePin(GPIOC, pin, GPIO_PIN_RESET);
-                transmit_string("Turned off ");
-                transmit_string(color_name);
-                transmit_string("\r\n");
-                break;
-            case '1':
-                HAL_GPIO_WritePin(GPIOC, pin, GPIO_PIN_SET);
-                transmit_string("Turned on ");
-                transmit_string(color_name);
-                transmit_string("\r\n");
-                break;
-            case '2':
-                HAL_GPIO_TogglePin(GPIOC, pin);
-                transmit_string("Toggled ");
-                transmit_string(color_name);
-                transmit_string("\r\n");
+        switch (receive_char()) {
+            case 's':
+                sweep();
                 break;
             default:
-                transmit_string("Error: unknown action\r\n");
+                transmit_string("Error: unknown command\r\n");
                 break;
         }
     }
