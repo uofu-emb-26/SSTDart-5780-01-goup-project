@@ -1,2 +1,8 @@
-.direnv/
 build/
+.direnv/
+*.o
+*.d
+*.lst
+*.elf
+*.bin
+*.hex
