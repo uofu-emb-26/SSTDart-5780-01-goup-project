@@ -25,6 +25,18 @@ all others must request authorization
 void PrepRCCLED(){
 RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
 }
+
+/* PrepRCCLED - enable LED RCC for use.
+*
+* no peram
+*
+* no return
+*
+*/
+void PrepRCCGPIOAnC(){
+  RCC->AHBENR |= (RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN);
+  RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
+}
 /* PrepRCCOscillator - enable, and config Oscillator RCC for use.
 * this is a register level verson of a prev code that relied on HAL
 *
@@ -125,7 +137,85 @@ void PrepConfigUART(){
     NVIC->ISER[0] = (1 << 29);
 
 }
+/* PrepConfigSPI - configure SPI.
+*
+* no peram
+*
+* no return
+*
+*/
+void PrepConfigSPI(){
+    //Configure SPI1 Pins (PA5, PA7) to AF0
+    GPIOA->MODER &= ~(GPIO_MODER_MODER5 | GPIO_MODER_MODER7);
+    GPIOA->MODER |= (GPIO_MODER_MODER5_1 | GPIO_MODER_MODER7_1);
+    GPIOA->AFR[0] &= ~((0xF << (5 * 4)) | (0xF << (7 * 4)));
 
+    //Configure Control Pins (PB0, PB6) as Outputs
+    GPIOB->ODR |= (1 << 0) | (1 << 6); // Set High (Idle)
+    GPIOB->MODER &= ~(GPIO_MODER_MODER0 | GPIO_MODER_MODER6);
+    GPIOB->MODER |= (GPIO_MODER_MODER0_0 | GPIO_MODER_MODER6_0);
+
+    //Configure SPI1 (Master, Mode 2: CPOL=1, CPHA=0)
+    SPI1->CR1 = SPI_CR1_MSTR | SPI_CR1_CPOL | SPI_CR1_SSM | SPI_CR1_SSI | (0x3 << SPI_CR1_BR_Pos);
+    SPI1->CR2 = (0xF << SPI_CR2_DS_Pos);
+    SPI1->CR1 |= SPI_CR1_SPE;
+}
+
+
+/* AD9833_Write - writ to dds.
+*
+* data - data to send to DDS
+*
+* no return
+*
+*/
+void AD9833_Write(uint16_t data) {
+    GPIOB->BRR = (1 << 0);                // FSYNC Low
+    while (!(SPI1->SR & SPI_SR_TXE));
+    *(volatile uint16_t *)&SPI1->DR = data;
+    while (SPI1->SR & SPI_SR_BSY);
+    GPIOB->BSRR = (1 << 0);               // FSYNC High
+}
+/* AD5227_Set_Amplitude - configure SPI.
+*
+* taget - target V mod
+*
+* no return
+*
+*/
+void AD5227_Set_Amplitude(uint8_t target) {
+    if (target > 63) target = 63;
+
+    //Temporarily disable SPI to manual control pins
+    SPI1->CR1 &= ~SPI_CR1_SPE;
+    GPIOA->MODER &= ~(GPIO_MODER_MODER5 | GPIO_MODER_MODER7);
+    GPIOA->MODER |= (GPIO_MODER_MODER5_0 | GPIO_MODER_MODER7_0); // General Purpose Output
+
+    GPIOB->BRR = (1 << 6); // CS Low
+
+    // Walk to Zero (Down)
+    GPIOA->BRR = (1 << 7); // MOSI/UD Low
+    for(int i = 0; i < 64; i++) {
+        GPIOA->BSRR = (1 << 5); // SCK/CLK High
+        for(volatile int d=0; d<10; d++);
+        GPIOA->BRR = (1 << 5);  // SCK/CLK Low
+    }
+
+    //Walk up to Target
+    GPIOA->BSRR = (1 << 7); // MOSI/UD High
+    for(int i = 0; i < target; i++) {
+        GPIOA->BSRR = (1 << 5); // SCK/CLK High
+        for(volatile int d=0; d<10; d++);
+        GPIOA->BRR = (1 << 5);  // SCK/CLK Low
+    }
+
+    GPIOB->BSRR = (1 << 6); // CS High (Lock)
+
+    //Re-enable SPI for AD9833 use
+    GPIOA->MODER &= ~(GPIO_MODER_MODER5 | GPIO_MODER_MODER7);
+    GPIOA->MODER |= (GPIO_MODER_MODER5_1 | GPIO_MODER_MODER7_1); // Back to AF
+    SPI1->CR1 |= SPI_CR1_SPE;
+}
 /* writep - write a pin from target GPIO (mostly for LEDs)
 *
 * ****WARNING NOT MANY GUARDRAILS ONLY SET WHAT YOU ARE CERTIAN YOU WANT TO SET****
@@ -162,3 +252,18 @@ void togglep(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin){
     //toggle Bit Set Reset Register of specified pin
     GPIOx->BSRR = ((odr & GPIO_Pin) << 16U) | (~odr & GPIO_Pin);
 }
+
+/* Prototype
+*
+*
+*
+*
+void Set_Frequency(uint32_t freq_hz) {
+    uint32_t freq_reg = (uint32_t)((double)freq_hz * 268435456.0 / 25000000.0);
+    
+    AD9833_Write(0x2100);                         // Control: B28, Reset
+    AD9833_Write((freq_reg & 0x3FFF) | 0x4000);   // FREQ0 LSB
+    AD9833_Write(((freq_reg >> 14) & 0x3FFF) | 0x4000); // FREQ0 MSB
+    AD9833_Write(0x2000);                         // Exit Reset, Sine Wave
+}
+*/

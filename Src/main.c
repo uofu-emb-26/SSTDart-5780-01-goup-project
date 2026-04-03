@@ -85,6 +85,8 @@ static void usart3_init(void)
     HAL_NVIC_EnableIRQ(USART3_4_IRQn);
 }
 
+
+//UART
 static char receive_char(void)
 {
     while (!rx_flag);
